@@ -15,14 +15,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.services.scraper_service import ScraperService
 from src.services.product_matcher import ProductMatcherService
 from src.services.cost_calculator import CostCalculatorService
-from src.services.mock_data import get_mock_results
+from src.services.smart_search import smart_search, calculate_basket_comparison
 from src.database import get_db
 from src.database.crud import get_all_supermarkets, upsert_supermarket
 from src.config.constants import SUPERMARKETS
 from src.models.supermarket import Supermarket
-
-# Use mock data (real scrapers are blocked by supermarket websites)
-USE_MOCK_DATA = True
 
 # Page config
 st.set_page_config(
@@ -110,15 +107,9 @@ def get_supermarkets_list() -> list[Supermarket]:
         ]
 
 
-async def search_products(query: str) -> dict:
-    """Search products in all supermarkets."""
-    if USE_MOCK_DATA:
-        # Use mock data (real websites block scrapers)
-        return get_mock_results(query)
-    else:
-        service = ScraperService()
-        results = await service.search_all_supermarkets(query)
-        return results
+def search_products(query: str) -> dict:
+    """Search products in all supermarkets using smart search."""
+    return smart_search(query)
 
 
 def add_to_shopping_list(product_name: str, prices: dict):
@@ -143,19 +134,14 @@ def remove_from_shopping_list(index: int):
 
 
 def calculate_comparison():
-    """Calculate price comparison for shopping list."""
+    """Calculate price comparison for shopping list using smart search."""
     if not st.session_state.shopping_list:
         return
 
-    supermarkets = get_supermarkets_list()
-    calculator = CostCalculatorService()
-
-    has_bonus = st.session_state.settings.get("has_ah_bonus", True)
-
-    options = calculator.compare_all_options(
+    # Use smart basket comparison that searches for each item
+    options = calculate_basket_comparison(
         st.session_state.shopping_list,
-        supermarkets,
-        has_bonus,
+        include_delivery=True,
     )
 
     st.session_state.comparison_results = options
@@ -176,8 +162,13 @@ with st.sidebar:
     if st.button("🔍 Zoeken", type="primary") and search_query:
         with st.spinner("Zoeken in supermarkten..."):
             try:
-                results = asyncio.run(search_products(search_query))
+                results = search_products(search_query)
                 st.session_state.search_results = results
+                total = sum(len(v) for v in results.values())
+                if total > 0:
+                    st.success(f"✅ {total} producten gevonden! Ga naar 'Zoekresultaten' tab.")
+                else:
+                    st.warning("Geen producten gevonden. Probeer een andere zoekterm.")
             except Exception as e:
                 st.error(f"Zoeken mislukt: {e}")
 
@@ -217,8 +208,12 @@ with tab1:
     st.header("Prijsvergelijking")
 
     if st.session_state.shopping_list:
-        if st.button("🔄 Vergelijk prijzen", type="primary"):
-            with st.spinner("Prijzen vergelijken..."):
+        st.write("**Je boodschappenlijst:**")
+        for item in st.session_state.shopping_list:
+            st.write(f"- {item['product_name']} (x{item['quantity']})")
+
+        if st.button("🔄 Vergelijk prijzen bij alle supermarkten", type="primary"):
+            with st.spinner("Prijzen vergelijken bij alle supermarkten..."):
                 calculate_comparison()
 
         if st.session_state.comparison_results:
@@ -227,25 +222,34 @@ with tab1:
             # Best option
             if results:
                 best = results[0]
+                items_found = best.get("items_found", 0)
+                items_missing = best.get("items_missing", 0)
+
                 st.success(
-                    f"🏆 **Voordeligste optie:** {best.supermarket} "
-                    f"({best.delivery_method}) - **€{best.total:.2f}**"
+                    f"🏆 **Voordeligste:** {best['supermarket']} - **€{best['total']:.2f}** "
+                    f"({items_found} producten gevonden)"
                 )
 
-                if best.savings > 0:
-                    st.info(f"💰 Je bespaart tot €{best.savings:.2f}!")
+                if items_missing > 0:
+                    st.warning(f"⚠️ {items_missing} product(en) niet gevonden bij {best['supermarket']}")
+
+                # Show savings vs most expensive
+                if len(results) > 1:
+                    most_expensive = max(r["total"] for r in results if r["items_found"] > 0)
+                    savings = most_expensive - best["total"]
+                    if savings > 0:
+                        st.info(f"💰 Je bespaart **€{savings:.2f}** t.o.v. de duurste optie!")
 
             # Comparison table
-            st.subheader("Alle opties")
+            st.subheader("Vergelijking alle supermarkten")
             df_data = []
             for opt in results:
                 df_data.append({
-                    "Supermarkt": opt.supermarket,
-                    "Methode": "🚚 Bezorgen" if opt.delivery_method == "delivery" else "🏪 Ophalen",
-                    "Producten": f"€{opt.product_total:.2f}",
-                    "Bezorging": f"€{opt.delivery_cost:.2f}",
-                    "Totaal": f"€{opt.total:.2f}",
-                    "Besparing": f"€{opt.savings:.2f}",
+                    "Supermarkt": opt["supermarket"],
+                    "Producten": f"€{opt['product_total']:.2f}",
+                    "Bezorging": f"€{opt['delivery_cost']:.2f}",
+                    "Totaal": f"€{opt['total']:.2f}",
+                    "Gevonden": f"{opt['items_found']}/{opt['items_found'] + opt['items_missing']}",
                 })
 
             df = pd.DataFrame(df_data)
@@ -255,21 +259,31 @@ with tab1:
             st.subheader("Grafiek")
             chart_data = pd.DataFrame([
                 {
-                    "Optie": f"{opt.supermarket} ({opt.delivery_method})",
-                    "Producten": opt.product_total,
-                    "Bezorging": opt.delivery_cost,
+                    "Supermarkt": opt["supermarket"],
+                    "Producten": opt["product_total"],
+                    "Bezorging": opt["delivery_cost"],
                 }
                 for opt in results
             ])
 
             fig = px.bar(
                 chart_data,
-                x="Optie",
+                x="Supermarkt",
                 y=["Producten", "Bezorging"],
-                title="Kosten per supermarkt",
+                title="Totale kosten per supermarkt",
                 barmode="stack",
             )
             st.plotly_chart(fig, use_container_width=True)
+
+            # Details per supermarket
+            st.subheader("Details per supermarkt")
+            for opt in results[:3]:  # Show top 3
+                with st.expander(f"{opt['supermarket']} - €{opt['total']:.2f}"):
+                    if opt.get("details"):
+                        for item in opt["details"]:
+                            st.write(f"- **{item['query']}**: {item['product']} - €{item['price']:.2f} x{item['quantity']}")
+                    else:
+                        st.write("Geen producten gevonden")
     else:
         st.info("👈 Voeg producten toe aan je boodschappenlijst om te vergelijken")
 
