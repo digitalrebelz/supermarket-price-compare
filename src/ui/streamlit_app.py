@@ -287,7 +287,7 @@ with tab2:
                     st.write("Geen producten gevonden")
                     continue
 
-                for product in products[:5]:
+                for idx, product in enumerate(products[:5]):
                     col1, col2, col3 = st.columns([4, 2, 1])
 
                     col1.write(f"**{product.name}**")
@@ -298,8 +298,8 @@ with tab2:
                         price_text += f" (Bonus: €{product.bonus_card_price:.2f})"
                     col2.write(price_text)
 
-                    # Add button
-                    if col3.button("➕", key=f"add_{supermarket}_{product.name[:20]}"):
+                    # Add button with unique key using index
+                    if col3.button("➕", key=f"add_{supermarket}_{idx}"):
                         prices = {supermarket: product.bonus_card_price or product.regular_price}
                         add_to_shopping_list(product.name, prices)
                         st.success(f"Toegevoegd: {product.name}")
