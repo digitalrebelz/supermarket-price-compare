@@ -15,10 +15,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.services.scraper_service import ScraperService
 from src.services.product_matcher import ProductMatcherService
 from src.services.cost_calculator import CostCalculatorService
+from src.services.mock_data import get_mock_results
 from src.database import get_db
 from src.database.crud import get_all_supermarkets, upsert_supermarket
 from src.config.constants import SUPERMARKETS
 from src.models.supermarket import Supermarket
+
+# Use mock data (real scrapers are blocked by supermarket websites)
+USE_MOCK_DATA = True
 
 # Page config
 st.set_page_config(
@@ -108,9 +112,13 @@ def get_supermarkets_list() -> list[Supermarket]:
 
 async def search_products(query: str) -> dict:
     """Search products in all supermarkets."""
-    service = ScraperService()
-    results = await service.search_all_supermarkets(query)
-    return results
+    if USE_MOCK_DATA:
+        # Use mock data (real websites block scrapers)
+        return get_mock_results(query)
+    else:
+        service = ScraperService()
+        results = await service.search_all_supermarkets(query)
+        return results
 
 
 def add_to_shopping_list(product_name: str, prices: dict):
