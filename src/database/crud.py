@@ -229,5 +229,7 @@ def delete_shopping_list(db: Session, list_id: int) -> bool:
     shopping_list = get_shopping_list(db, list_id)
     if shopping_list:
         db.delete(shopping_list)
+        db.flush()
+        db.expire_all()
         return True
     return False

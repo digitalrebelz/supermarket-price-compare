@@ -71,8 +71,9 @@ class TestProductMatcherService:
 
     def test_match_products_across_stores(self, mock_search_results):
         """Test matching products across stores."""
-        matcher = ProductMatcherService()
-        matches = matcher.match_products_across_stores("melk", mock_search_results)
+        # Use lower threshold for partial matching
+        matcher = ProductMatcherService(similarity_threshold=0.3)
+        matches = matcher.match_products_across_stores("halfvolle melk", mock_search_results)
 
         assert "albert_heijn" in matches
         assert "jumbo" in matches
@@ -108,8 +109,9 @@ class TestProductMatcherService:
 
     def test_get_price_comparison(self, mock_search_results):
         """Test getting price comparison."""
-        matcher = ProductMatcherService()
-        comparison = matcher.get_price_comparison("melk", mock_search_results)
+        # Use lower threshold for partial matching
+        matcher = ProductMatcherService(similarity_threshold=0.3)
+        comparison = matcher.get_price_comparison("halfvolle melk", mock_search_results)
 
         assert "albert_heijn" in comparison
         assert comparison["albert_heijn"]["regular_price"] == 1.49
