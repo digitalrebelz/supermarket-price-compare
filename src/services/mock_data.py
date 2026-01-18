@@ -1,6 +1,17 @@
-"""Mock data for demo mode when scrapers are blocked."""
+"""Mock data for demo mode when scrapers are blocked.
 
+Uses real AH API data + mock data for other supermarkets.
+"""
+
+from loguru import logger
 from src.models.product import ProductSearch
+
+# Try to use real AH API
+try:
+    from src.scrapers.ah_api import AlbertHeijnAPIScraper
+    AH_API_AVAILABLE = True
+except ImportError:
+    AH_API_AVAILABLE = False
 
 # Realistic Dutch supermarket product data
 MOCK_PRODUCTS: dict[str, list[dict]] = {
@@ -90,10 +101,30 @@ MOCK_PRODUCTS: dict[str, list[dict]] = {
 
 
 def get_mock_results(query: str) -> dict[str, list[ProductSearch]]:
-    """Get mock search results for a query."""
+    """Get search results - real AH API + mock data for others."""
     query_lower = query.lower().strip()
 
-    # Find matching products
+    # Initialize results
+    results: dict[str, list[ProductSearch]] = {
+        "albert_heijn": [],
+        "jumbo": [],
+        "dirk": [],
+        "plus": [],
+        "flink": [],
+        "picnic": [],
+    }
+
+    # Try real AH API first
+    if AH_API_AVAILABLE:
+        try:
+            ah_scraper = AlbertHeijnAPIScraper()
+            ah_results = ah_scraper.search_product(query, limit=10)
+            results["albert_heijn"] = ah_results
+            logger.info(f"AH API: {len(ah_results)} real products for '{query}'")
+        except Exception as e:
+            logger.warning(f"AH API failed, using mock: {e}")
+
+    # Find matching mock products for other supermarkets
     matching_products = []
     for keyword, products in MOCK_PRODUCTS.items():
         if keyword in query_lower or query_lower in keyword:
@@ -106,18 +137,12 @@ def get_mock_results(query: str) -> dict[str, list[ProductSearch]]:
                 if query_lower in product["name"].lower():
                     matching_products.append(product)
 
-    # Group by supermarket
-    results: dict[str, list[ProductSearch]] = {
-        "albert_heijn": [],
-        "jumbo": [],
-        "dirk": [],
-        "plus": [],
-        "flink": [],
-        "picnic": [],
-    }
-
+    # Add mock data for non-AH supermarkets (or AH if API failed)
     for product in matching_products:
         store = product["store"]
+        # Skip AH if we already have real data
+        if store == "albert_heijn" and results["albert_heijn"]:
+            continue
         results[store].append(
             ProductSearch(
                 name=product["name"],

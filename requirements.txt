@@ -30,3 +30,6 @@ pandas>=2.1.0
 # Utils
 fuzzywuzzy>=0.18.0
 python-Levenshtein>=0.23.0
+
+# Supermarket APIs
+supermarktconnector>=0.7.0
