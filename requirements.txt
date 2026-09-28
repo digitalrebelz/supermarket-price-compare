@@ -1,35 +1,35 @@
 # Core
-python-dotenv>=1.0.0
-pydantic>=2.5.0
-pydantic-settings>=2.1.0
-loguru>=0.7.0
+python-dotenv>=1.2.3
+pydantic>=2.13.5
+pydantic-settings>=2.15.0
+loguru>=0.7.3
 
 # Database
-sqlalchemy>=2.0.0
-alembic>=1.12.0
+sqlalchemy>=2.1.1
+alembic>=1.20.0
 
 # API
-fastapi>=0.104.0
-uvicorn>=0.24.0
+fastapi>=0.141.1
+uvicorn>=0.54.0
 
 # Scraping
-playwright>=1.40.0
-httpx>=0.25.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-tenacity>=8.2.0
+playwright>=1.63.0
+httpx>=0.28.1
+beautifulsoup4>=4.15.0
+lxml>=6.1.3
+tenacity>=9.1.4
 
 # Scheduling
-apscheduler>=3.10.0
+apscheduler>=3.11.3
 
 # UI
-streamlit>=1.29.0
-plotly>=5.18.0
-pandas>=2.1.0
+streamlit>=1.64.0
+plotly>=7.1.0
+pandas>=3.0.6
 
 # Utils
 fuzzywuzzy>=0.18.0
-python-Levenshtein>=0.23.0
+python-Levenshtein>=0.27.5
 
 # Supermarket APIs
-supermarktconnector>=0.7.0
+supermarktconnector>=0.8.1
